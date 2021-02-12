@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from core.utils import _flatten_helper
 
 class PPO():
     def __init__(self, actor_critic, clip_param, ppo_epoch, num_mini_batch, value_loss_coef, entropy_coef,
@@ -36,14 +37,25 @@ class PPO():
             if e == 0 or (e > 0 and self.recompute_returns):
                 with torch.no_grad():
                     if e > 0:
-                        if self.actor_critic.is_recurrent and self.actor_critic.base.recurrent_type == "LSTM":
-                            recurrent_hidden_states_in = (rollouts.recurrent_hidden_states[:-1],
-                                                          rollouts.recurrent_cell_states[:-1])
+                        #recomputing advantages at start of each ppo epoch.
+                        if self.actor_critic.is_recurrent:
+                            T, N = rollouts.obs[:-1].shape[0], rollouts.obs[:-1].shape[1]
+                            if self.actor_critic.base.recurrent_type == "LSTM":
+                                recurrent_hidden_states_in = (_flatten_helper(T, N, rollouts.recurrent_hidden_states[:-1]),
+                                                              _flatten_helper(T, N, rollouts.recurrent_cell_states[:-1]))
+                            else:
+                                recurrent_hidden_states_in = _flatten_helper(T, N, rollouts.recurrent_cell_states[:-1])
+                            obs_in = _flatten_helper(T, N, rollouts.obs[:-1])
+                            mask_in = _flatten_helper(T, N, rollouts.masks[:-1])
                         else:
                             recurrent_hidden_states_in = rollouts.recurrent_hidden_states[:-1]
+                            obs_in = rollouts.obs[:-1]
+                            mask_in = rollouts.masks[:-1]
                         values = self.actor_critic.get_value(
-                            rollouts.obs[:-1], recurrent_hidden_states_in, rollouts.masks[:-1]
+                            obs_in, recurrent_hidden_states_in, mask_in
                         ).detach()
+                        if self.actor_critic.is_recurrent:
+                            values = values.view(T, N, -1)
                         rollouts.value_preds[:-1].copy_(values)
                     if self.actor_critic.is_recurrent and self.actor_critic.base.recurrent_type == "LSTM":
                         recurrent_hidden_states_in = (rollouts.recurrent_hidden_states[-1],

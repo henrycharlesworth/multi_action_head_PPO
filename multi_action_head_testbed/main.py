@@ -49,10 +49,6 @@ class MultiActionHeads(nn.Module):
             self.action_heads = action_heads
 
     def forward(self, input, masks, actions=None, extra_inputs=None, deterministic=False):
-        """
-        I think simplify this - provide actions as optional argument for evaluating log prob
-        otherwise evaluate sampled actions!
-        """
         head_outputs = []
         action_outputs = []
         action_type_dist = self.action_heads[0](input, masks[0])

@@ -57,3 +57,6 @@ def cleanup_log_dir(log_dir):
         files = glob.glob(os.path.join(log_dir, '*.monitor.csv'))
         for f in files:
             os.remove(f)
+
+def _flatten_helper(T, N, _tensor):
+    return _tensor.view(T * N, *_tensor.size()[2:])
