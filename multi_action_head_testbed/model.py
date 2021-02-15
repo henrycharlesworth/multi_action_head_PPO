@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from core.distributions import Categorical, DiagGaussian
 
-"""consider implementing differentiable categorical"""
+"""consider implementing differentiable categorical to allow gradients to flow back. probably unnecessary"""
 
 class MultiActionHeads(nn.Module):
     def __init__(self, head_infos, autoregressive_maps, action_type_masks, input_dim, action_heads=None,
@@ -19,21 +19,23 @@ class MultiActionHeads(nn.Module):
         """
         super(MultiActionHeads, self).__init__()
         self.dummy_param = nn.Parameter(torch.empty(0))
+        self.head_infos = head_infos
+        self.autoregressive_map = autoregressive_maps
+        self.action_type_mask = action_type_masks
+        self.input_dim = input_dim
+        self.extra_dims = extra_dims
+
         if action_heads is None:
             assert head_infos[0]["type"] == "categorical" #first action head is action type
-            assert len(head_infos) == len(autoregressive_maps) == len(action_type_masks)
+            assert len(head_infos) == len(autoregressive_maps)
+            assert action_type_masks.shape[0] == head_infos[0]["out_dim"]
+            assert action_type_masks.shape[1] == len(head_infos) - 1
             for i, map in enumerate(autoregressive_maps):
                 for entry in map:
                     assert entry < i #only allow earlier heads as inputs to later heads
 
-            self.head_infos = head_infos
-            self.autoregressive_map = autoregressive_maps
-            self.action_type_mask = action_type_masks
-            self.input_dim = input_dim
-            self.extra_dims = extra_dims
-
             self.action_heads = nn.ModuleList()
-            for i, info in head_infos:
+            for i, info in enumerate(head_infos):
                 type = info["type"]; head_out_dim = info["out_dim"]
                 head_in_dim = 0
                 for ind in autoregressive_maps[i]:
@@ -41,8 +43,8 @@ class MultiActionHeads(nn.Module):
                         head_in_dim += input_dim
                     else:
                         head_in_dim += head_infos[ind]["out_dim"]
-                if extra_dims is not None:
-                    head_in_dim += extra_dims[i + 1]
+                if extra_dims is not None and i > 0:
+                    head_in_dim += extra_dims[i - 1]
                 self.action_heads.append(ActionHead(head_in_dim, head_out_dim, type))
         else:
             assert isinstance(action_heads, nn.ModuleList)
@@ -56,12 +58,13 @@ class MultiActionHeads(nn.Module):
             action_type = action_type_dist.mode()
         else:
             action_type = action_type_dist.sample()
-        type_masks = self.action_type_mask[action_type.squeeze(0), :]
         one_hot_action_types = torch.zeros(input.size(0), self.head_infos[0]["out_dim"], device=self.dummy_param.device)
         if actions is None:
             one_hot_action_types.scatter_(-1, action_type, 1.0)
+            type_masks = self.action_type_mask[action_type.squeeze(-1), :]
         else:
-            one_hot_action_types.scatter(-1, actions[0], 1.0)
+            one_hot_action_types.scatter_(-1, actions[0], 1.0)
+            type_masks = self.action_type_mask[actions[0].squeeze(-1), :]
         head_outputs.append(one_hot_action_types)
         action_outputs.append(action_type)
         if actions is None:
@@ -76,9 +79,10 @@ class MultiActionHeads(nn.Module):
                     head_inputs.append(input)
                 else:
                     head_inputs.append(head_outputs[ind])
-            if extra_inputs[i-1] is not None:
+            if extra_inputs is not None:
                 head_inputs.append(extra_inputs[i-1])
             head_input = torch.cat(head_inputs, dim=-1)
+
             head_dist = self.action_heads[i](head_input, masks[i])
             if deterministic:
                 head_action = head_dist.mode()
@@ -88,7 +92,7 @@ class MultiActionHeads(nn.Module):
                 else:
                     head_action = head_dist.sample()
             if self.head_infos[i]["type"] == "categorical":
-                one_hot_head_action = torch.zeros(input.size(0), self.head_infos[0]["out_dim"],
+                one_hot_head_action = torch.zeros(input.size(0), self.head_infos[i]["out_dim"],
                                                   device=self.dummy_param.device)
                 if actions is None:
                     one_hot_head_action.scatter_(-1, head_action, 1.0)
