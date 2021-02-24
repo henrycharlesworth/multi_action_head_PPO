@@ -3,8 +3,6 @@ import torch.nn as nn
 
 from core.distributions import Categorical, DiagGaussian
 
-"""consider implementing differentiable categorical to allow gradients to flow back. probably unnecessary"""
-
 class MultiActionHeads(nn.Module):
     def __init__(self, head_infos, autoregressive_maps, action_type_masks, input_dim, action_heads=None,
                  extra_dims=None):
@@ -72,6 +70,7 @@ class MultiActionHeads(nn.Module):
         else: #evaluating actions rather than generating
             joint_action_log_prob = action_type_dist.log_probs(actions[0])
 
+        entropy = action_type_dist.entropy().mean()
         for i in range(1, len(self.action_heads)):
             head_inputs = []
             for ind in self.autoregressive_map[i]:
@@ -109,7 +108,9 @@ class MultiActionHeads(nn.Module):
             else:
                 joint_action_log_prob += (log_prob_mask * head_dist.log_probs(actions[i]))
 
-        return action_outputs, joint_action_log_prob
+            entropy += head_dist.entropy().mean()
+
+        return action_outputs, joint_action_log_prob, entropy
 
 
 class ActionHead(nn.Module):

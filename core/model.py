@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from core.distributions import Categorical, DiagGaussian
 from core.utils import init
@@ -13,7 +12,7 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_space, base=None, base_kwargs=None):
+    def __init__(self, obs_shape, action_space=None, base=None, base_kwargs=None, use_action_masks=False):
         super(Policy, self).__init__()
         if base_kwargs is None:
             base_kwargs = {}
@@ -26,15 +25,17 @@ class Policy(nn.Module):
                 raise NotImplementedError
 
         self.base = base(obs_shape[0], **base_kwargs)
+        self.use_action_masks = use_action_masks
 
-        if action_space.__class__.__name__ == "Discrete":
-            num_outputs = action_space.n
-            self.dist = Categorical(self.base.output_size, num_outputs)
-        elif action_space.__class__.__name__ == "Box":
-            num_outputs = action_space.shape[0]
-            self.dist = DiagGaussian(self.base.output_size, num_outputs)
-        else:
-            raise NotImplementedError
+        if action_space is not None:
+            if action_space.__class__.__name__ == "Discrete":
+                num_outputs = action_space.n
+                self.dist = Categorical(self.base.output_size, num_outputs)
+            elif action_space.__class__.__name__ == "Box":
+                num_outputs = action_space.shape[0]
+                self.dist = DiagGaussian(self.base.output_size, num_outputs)
+            else:
+                raise NotImplementedError
 
     @property
     def is_recurrent(self):
@@ -47,9 +48,12 @@ class Policy(nn.Module):
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
 
-    def act(self, inputs, rnn_hxs, masks, deterministic=False):
+    def act(self, inputs, rnn_hxs, masks, deterministic=False, action_masks=None):
         value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
-        dist = self.dist(actor_features)
+        if self.use_action_masks:
+            dist = self.dist(actor_features, mask=action_masks)
+        else:
+            dist = self.dist(actor_features)
 
         if deterministic:
             action = dist.mode()
@@ -64,14 +68,37 @@ class Policy(nn.Module):
         value, _, _ = self.base(inputs, rnn_hxs, masks)
         return value
 
-    def evaluate_actions(self, inputs, rnn_hxs, masks, action):
+    def evaluate_actions(self, inputs, rnn_hxs, masks, action, action_masks=None):
         value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
-        dist = self.dist(actor_features)
+        if self.use_action_masks:
+            dist = self.dist(actor_features, mask=action_masks)
+        else:
+            dist = self.dist(actor_features)
 
         action_log_probs = dist.log_probs(action)
         dist_entropy = dist.entropy().mean()
 
         return value, action_log_probs, dist_entropy, rnn_hxs
+
+
+class MultiHeadPolicy(Policy):
+    def __init__(self, obs_shape, action_heads, base=None, base_kwargs=None, use_action_masks=False):
+        super().__init__(obs_shape=obs_shape, action_space=None, base=base, base_kwargs=base_kwargs,
+                         use_action_masks=use_action_masks)
+        self.action_heads = action_heads
+
+    def act(self, inputs, rnn_hxs, masks, action_masks, deterministic=False):
+        value, action_input_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+        actions, action_log_probs, _ = self.action_heads(input=action_input_features, masks=action_masks,
+                                                     deterministic=deterministic)
+        return value, actions, action_log_probs, rnn_hxs
+
+    def evaluate_actions(self, inputs, rnn_hxs, masks, actions, action_masks):
+        value, action_input_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+        _, action_log_probs, entropy = self.action_heads(input=action_input_features, masks=action_masks, actions=actions)
+
+        return value, action_log_probs, entropy, rnn_hxs
+
 
 
 class NNBase(nn.Module):

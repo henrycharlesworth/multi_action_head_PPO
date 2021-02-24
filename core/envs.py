@@ -8,13 +8,22 @@ from gym.spaces.box import Box
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.atari_wrappers import NoopResetEnv, MaxAndSkipEnv, EpisodicLifeEnv, FireResetEnv, \
     WarpFrame, ClipRewardEnv
-from stable_baselines3.common.vec_env import VecEnvWrapper, DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import VecEnvWrapper, DummyVecEnv
 from stable_baselines3.common.vec_env.vec_normalize import VecNormalize as VecNormalize_
+
+from envs.subproc_vec_env import SubprocVecEnv
+from envs.dummy_env import DummyEnv
+from envs.dummy_multi_head_env import DummyMultiHeadEnv
 
 
 def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
-        env = gym.make(env_id)
+        if env_id == "dummy_env":
+            env = DummyEnv()
+        elif env_id == "dummy_multi_head_env":
+            env = DummyMultiHeadEnv()
+        else:
+            env = gym.make(env_id)
 
         is_atari = hasattr(gym.envs, 'atari') and isinstance(env.unwrapped, gym.envs.atari.atari_env.AtariEnv)
         if is_atari:
@@ -52,14 +61,8 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
 
     return _thunk
 
-def make_vec_envs(env_name,
-                  seed,
-                  num_processes,
-                  gamma,
-                  log_dir,
-                  device,
-                  allow_early_resets,
-                  num_frame_stack=None):
+def make_vec_envs(env_name, seed, num_processes, gamma, log_dir, device, allow_early_resets, num_frame_stack=None,
+                  no_obs_norm=False):
     envs = [
         make_env(env_name, seed, i, log_dir, allow_early_resets)
         for i in range(num_processes)
@@ -70,11 +73,12 @@ def make_vec_envs(env_name,
     else:
         envs = DummyVecEnv(envs)
 
-    if len(envs.observation_space.shape) == 1:
-        if gamma is None:
-            envs = VecNormalize(envs, norm_reward=False)
-        else:
-            envs = VecNormalize(envs, gamma=gamma)
+    if no_obs_norm == False:
+        if len(envs.observation_space.shape) == 1:
+            if gamma is None:
+                envs = VecNormalize(envs, norm_reward=False)
+            else:
+                envs = VecNormalize(envs, gamma=gamma)
 
     envs = VecPyTorch(envs, device)
 
@@ -138,11 +142,19 @@ class VecPyTorch(VecEnvWrapper):
         return obs
 
     def step_async(self, actions):
-        if isinstance(actions, torch.LongTensor):
-            # Squeeze the dimension for discrete actions
-            actions = actions.squeeze(1)
-        actions = actions.cpu().numpy()
-        self.venv.step_async(actions)
+        if isinstance(actions, list):
+            action_to_submit = []
+            for ac in actions:
+                if isinstance(ac, torch.LongTensor):
+                    ac = ac.squeeze(1)
+                action_to_submit.append(ac.cpu().numpy())
+            self.venv.step_async(action_to_submit)
+        else:
+            if isinstance(actions, torch.LongTensor):
+                # Squeeze the dimension for discrete actions
+                actions = actions.squeeze(1)
+            actions = actions.cpu().numpy()
+            self.venv.step_async(actions)
 
     def step_wait(self):
         obs, reward, done, info = self.venv.step_wait()

@@ -40,6 +40,10 @@ class FixedCategorical(torch.distributions.Categorical):
     def log_probs(self, actions):
         return super().log_prob(actions.squeeze(-1)).view(actions.size(0), -1).sum(-1).unsqueeze(-1)
 
+    def entropy(self):
+        p = self.probs.masked_fill(self.probs <= 0, 1)
+        return p.mul(p.log()).sum(-1)
+
 class Categorical(nn.Module):
     def __init__(self, num_inputs, num_outputs):
         super(Categorical, self).__init__()
@@ -80,7 +84,7 @@ class DiagGaussian(nn.Module):
         self.logstd = AddBias(desired_init_log_std * torch.ones(num_outputs)) #so no state-dependent sigma
         # self.logstd = AddBias(torch.zeros(num_outputs))
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         action_mean = self.fc_mean(x)
 
         zeros = torch.zeros(action_mean.size())

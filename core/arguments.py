@@ -37,8 +37,8 @@ def get_args():
     parser.add_argument(
         '--entropy-coef',
         type=float,
-        default=0.01,
-        help='entropy term coefficient (default: 0.01)')
+        default=0.0,
+        help='entropy term coefficient (default: 0.0)')
     parser.add_argument(
         '--value-loss-coef',
         type=float,
@@ -76,6 +76,12 @@ def get_args():
         type=int,
         default=32,
         help='number of batches for ppo (default: 32)')
+    parser.add_argument(
+        '--hidden-size',
+        type=int,
+        default=64,
+        help='hidden layer size in base'
+    )
     parser.add_argument(
         '--clip-param',
         type=float,
@@ -135,6 +141,18 @@ def get_args():
         help='GRU or LSTM'
     )
     parser.add_argument(
+        '--multi-action-head',
+        action='store_true',
+        default=False,
+        help='Whether our action space uses multiple heads'
+    )
+    parser.add_argument(
+        '--use-action-masks',
+        action='store_true',
+        default=False,
+        help='Whether we use action masking to mask out invalid actions'
+    )
+    parser.add_argument(
         '--use-linear-lr-decay',
         action='store_true',
         default=False,
@@ -143,6 +161,12 @@ def get_args():
         '--extra-id',
         default="",
         help="anything extra to append to save name"
+    )
+    parser.add_argument(
+        '--no-obs-norm',
+        action='store_true',
+        default=True,
+        help='Turn off automatic observation normalisation'
     )
     args = parser.parse_args()
 
