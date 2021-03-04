@@ -1,4 +1,4 @@
-# PPO with multi-head actions
+# PPO with multi-head/ autoregressive actions
 This is a modification of the excellent PyTorch implementation of PPO [here](https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail) to allow for multi-head/ auto-regressive action spaces (also supports LSTMs now whereas that implementation only supported GRUs).
 
 The set-up I am assuming is that the first action head will be a categorical output of the action type. The output of this then feeds into the subsequent action heads. All of the subsequent action heads can optionally take in the observation output as well as any of the outputs from previous action heads. The basic structure is as follows:
