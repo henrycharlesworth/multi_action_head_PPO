@@ -9,7 +9,7 @@ class MultiActionHeads(nn.Module):
         """
         head_info - list of dicts, with type (continuous/discrete) and dimension. first entry assumed to be action type.
         autoregressive map - list of adjacency lists that detail which action heads feed into which later heads (-1 is input state)
-        action_type_mask - list of action_type masks for each action head
+        action_type_mask - list of action_type masks for each action head (after first which is action type)
                            (each is list of len(action_types) where 1 means action_type(ind) means this action_type
                            requires this head)
         action_heads - can provide ModuleList of action heads instead (for full customisation)

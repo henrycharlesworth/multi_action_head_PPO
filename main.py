@@ -13,7 +13,6 @@ from core.storage import RolloutStorage
 from core import utils
 
 from algorithms.ppo import PPO
-from evaluate import evaluate
 
 
 def main():
@@ -159,7 +158,7 @@ def main():
                 obs_rms = utils.get_vec_normalize(envs).obs_rms
             else:
                 obs_rms = None
-            evaluate(actor_critic, obs_rms, args.env_name, args.seed, args.num_processes, eval_log_dir, device)
+            #evaluate(actor_critic, obs_rms, args.env_name, args.seed, args.num_processes, eval_log_dir, device)
 
 if __name__ == "__main__":
     main()

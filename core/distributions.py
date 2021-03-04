@@ -7,31 +7,6 @@ from core.utils import AddBias, init
 Modifying standard PyTorch distributions for compatibility
 """
 
-# #differentiable categorical
-# class FixedExpRelaxedCategorical(torch.distributions.relaxed_categorical.ExpRelaxedCategorical):
-#     def sample(self, sample_shape=torch.Size()):
-#         return super().rsample(sample_shape=sample_shape).unsqueeze(-1)
-#
-#     def log_prob(self, actions):
-#         return super().log_prob(actions.squeeze(-1)).view(actions.size(0), -1).sum(-1).unsqueeze(-1)
-#
-# class RelaxedCategorical(nn.Module):
-#     def __init__(self, num_inputs, num_outputs):
-#         super(RelaxedCategorical, self).__init__()
-#
-#         init_ = lambda m: init(
-#             m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), gain=0.01
-#         )
-#
-#         self.linear = init_(nn.Linear(num_inputs, num_outputs))
-#
-#     def forward(self, x, mask=None):
-#         x = self.linear(x)
-#         if mask is not None:
-#             return FixedExpRelaxedCategorical(logits=x + torch.log(mask))
-#         else:
-#             return FixedExpRelaxedCategorical(logits=x)
-
 #Categorical
 class FixedCategorical(torch.distributions.Categorical):
     def sample(self):
@@ -42,7 +17,10 @@ class FixedCategorical(torch.distributions.Categorical):
 
     def entropy(self):
         p = self.probs.masked_fill(self.probs <= 0, 1)
-        return p.mul(p.log()).sum(-1)
+        return -1 * p.mul(p.log()).sum(-1)
+
+    def mode(self):
+        return self.probs.argmax(dim=-1, keepdim=True)
 
 class Categorical(nn.Module):
     def __init__(self, num_inputs, num_outputs):
@@ -80,9 +58,8 @@ class DiagGaussian(nn.Module):
                                constant_(x, 0))
 
         self.fc_mean = init_(nn.Linear(num_inputs, num_outputs))
-        desired_init_log_std = -0.693471
+        desired_init_log_std = -0.693471 #exp(..) ~= 0.5
         self.logstd = AddBias(desired_init_log_std * torch.ones(num_outputs)) #so no state-dependent sigma
-        # self.logstd = AddBias(torch.zeros(num_outputs))
 
     def forward(self, x, mask=None):
         action_mean = self.fc_mean(x)

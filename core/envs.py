@@ -11,9 +11,10 @@ from stable_baselines3.common.atari_wrappers import NoopResetEnv, MaxAndSkipEnv,
 from stable_baselines3.common.vec_env import VecEnvWrapper, DummyVecEnv
 from stable_baselines3.common.vec_env.vec_normalize import VecNormalize as VecNormalize_
 
-from envs.subproc_vec_env import SubprocVecEnv
+from core.subproc_vec_env import SubprocVecEnv
 from envs.dummy_env import DummyEnv
 from envs.dummy_multi_head_env import DummyMultiHeadEnv
+from envs.platform_wrapper import PlatformWrapper
 
 
 def make_env(env_id, seed, rank, log_dir, allow_early_resets):
@@ -22,6 +23,8 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
             env = DummyEnv()
         elif env_id == "dummy_multi_head_env":
             env = DummyMultiHeadEnv()
+        elif env_id == "platform":
+            env = PlatformWrapper()
         else:
             env = gym.make(env_id)
 
@@ -145,9 +148,11 @@ class VecPyTorch(VecEnvWrapper):
         if isinstance(actions, list):
             action_to_submit = []
             for ac in actions:
-                if isinstance(ac, torch.LongTensor):
+                if isinstance(ac, torch.LongTensor) or ac.dtype == torch.int64:
                     ac = ac.squeeze(1)
                 action_to_submit.append(ac.cpu().numpy())
+            if isinstance(self.venv, DummyVecEnv):
+                action_to_submit = [action_to_submit]
             self.venv.step_async(action_to_submit)
         else:
             if isinstance(actions, torch.LongTensor):
