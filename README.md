@@ -5,6 +5,23 @@ The set-up I am assuming is that the first action head will be a categorical out
 
 ![](https://github.com/henrycharlesworth/multi_action_head_PPO/blob/master/imgs/action_head_structure.png?raw=true)
 
+Masks have to be provided to each head (from the environment - so a `get_available_actions()` function must be defined) to mask out valid actions for a given state. These can be set to ones if all actions are valid. Then any environment that uses multiple action heads must have the following things defined:
+```
+self.head_infos, self.autoregressive_maps, self.action_type_masks
+```
+
+`head_infos` is a list of dictionaries describing each action head, e.g. for the Platform env:
+
+```
+self.head_infos = [
+            {"type": "categorical", "out_dim": 3},
+            {"type": "normal", "out_dim": 1}
+]
+
+```
+`autoregressive_maps` is a list of lists that specifies which action heads should act as inputs to subsequent action heads. -1 refers to the NN observation output.
+
+`action_type_masks` is a `num_action_types` x `num_action_heads - 1` array that is used to mask out certain action heads based on the action type selected. So for each value of `action_type` it specifies which of the subsequent heads should/should not be masked out.
 
 ## Initial Test
 Initial test is on the [Platform](https://github.com/cycraig/gym-platform) environment. The agent has to choose between 3 action types (run, hop, leap) as well as providing a parameter that tells it how far/high. So essentially we have a categorical output for the action type and a continuous output for the action parameter. The wrapper I use is [here](https://github.com/henrycharlesworth/multi_action_head_PPO/blob/master/envs/platform_wrapper.py). 
