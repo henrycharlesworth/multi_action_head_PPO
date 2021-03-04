@@ -3,7 +3,7 @@ This is a modification of the excellent PyTorch implementation of PPO [here](htt
 
 The set-up I am assuming is that the first action head will be a categorical output of the action type. The output of this then feeds into the subsequent action heads. All of the subsequent action heads can optionally take in the observation output as well as any of the outputs from previous action heads. The basic structure is as follows:
 
-![multi-head action structure](https://raw.githubusercontent.com/henrycharlesworth/multi_action_head_PPO/master/imgs/action_head_structure.png?token=AETFA2W53WRCHE365UOTTR3AIC4JE)
+![](https://github.com/henrycharlesworth/multi_action_head_PPO/blob/master/imgs/action_head_structure.png?raw=true)
 
 
 ## Initial Test
@@ -18,4 +18,4 @@ python main.py --env-name "platform" --algo ppo --use-gae --log-interval 1 --num
 
 It trains reasonably quickly and this is the trained agent:
 
-![platform result](https://raw.githubusercontent.com/henrycharlesworth/multi_action_head_PPO/master/imgs/platform_gif.gif?token=AETFA2RF7VOMPMXGUQLZBWDAIC452)
+![platform result](https://github.com/henrycharlesworth/multi_action_head_PPO/blob/master/imgs/platform_gif.gif?raw=true)
